@@ -42,11 +42,13 @@ Options:
 	--ulimit=NLIMIT             run 'ulimit -n' to check the maximum number of open file descriptors.
 `
 
+	//解析命令行参数
 	d, err := docopt.Parse(usage, nil, true, "", false)
 	if err != nil {
 		log.PanicError(err, "parse arguments failed")
 	}
 
+	//查看配置、版本信息
 	switch {
 
 	case d["--default-config"]:
@@ -60,6 +62,7 @@ Options:
 
 	}
 
+	//设置日志文件位置
 	if s, ok := utils.Argument(d, "--log"); ok {
 		w, err := log.NewRollingFile(s, log.DailyRolling)
 		if err != nil {
@@ -70,12 +73,14 @@ Options:
 	}
 	log.SetLevel(log.LevelInfo)
 
+	//设置日志文件级别
 	if s, ok := utils.Argument(d, "--log-level"); ok {
 		if !log.SetLevelString(s) {
 			log.Panicf("option --log-level = %s", s)
 		}
 	}
 
+	//设置文件打卡数
 	if n, ok := utils.ArgumentInteger(d, "--ulimit"); ok {
 		b, err := exec.Command("/bin/sh", "-c", "ulimit -n").Output()
 		if err != nil {
@@ -86,6 +91,7 @@ Options:
 		}
 	}
 
+	//设置使用的cpu数
 	var ncpu int
 	if n, ok := utils.ArgumentInteger(d, "--ncpu"); ok {
 		ncpu = n
@@ -94,6 +100,7 @@ Options:
 	}
 	runtime.GOMAXPROCS(ncpu)
 
+	//设置最大核数
 	var maxncpu int
 	if n, ok := utils.ArgumentInteger(d, "--max-ncpu"); ok {
 		maxncpu = n
@@ -104,6 +111,7 @@ Options:
 		go AutoGOMAXPROCS(ncpu, maxncpu)
 	}
 
+	//加载配置文件
 	config := proxy.NewDefaultConfig()
 	if s, ok := utils.Argument(d, "--config"); ok {
 		if err := config.LoadFromFile(s); err != nil {
