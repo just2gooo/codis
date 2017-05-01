@@ -192,7 +192,8 @@ function renderSlotsCharts(slots_array) {
             },
         },
         legend: {
-            enabled: true
+            enabled: true,
+            itemWidth: 140,
         },
         plotOptions: {
             columnrange: {
@@ -276,7 +277,7 @@ function processProxyStats(codis_stats) {
     return {proxy_array: proxy_array, qps: qps, sessions: sessions};
 }
 
-function processSentinels(codis_stats, codis_name) {
+function processSentinels(codis_stats, group_stats, codis_name) {
     var ha = codis_stats.sentinels;
     var out_of_sync = false;
     var servers = [];
@@ -287,6 +288,7 @@ function processSentinels(codis_stats, codis_name) {
         for (var i = 0; i < ha.model.servers.length; i ++) {
             var x = {server: ha.model.servers[i]};
             var s = ha.stats[x.server];
+            x.runid_error = "";
             if (!s) {
                 x.status = "PENDING";
             } else if (s.timeout) {
@@ -345,6 +347,38 @@ function processSentinels(codis_stats, codis_name) {
                     avg = Number(x.sentinels) / x.masters;
                 }
                 x.status_text += ",sentinels=" + avg.toFixed(2);
+
+                if (s.sentinel != undefined) {
+                    var group_array = group_stats.group_array;
+                    for (var t in group_array) {
+                        var g = group_array[t];
+                        var d = s.sentinel[codis_name + "-" + g.id];
+                        var runids = {};
+                        if (d != undefined) {
+                            if (d.master != undefined) {
+                                var o = d.master;
+                                runids[o["runid"]] = o["ip"] + ":" + o["port"];
+                            }
+                            if (d.slaves != undefined) {
+                                for (var j = 0; j < d.slaves.length; j ++) {
+                                    var o = d.slaves[j];
+                                    runids[o["runid"]] = o["ip"] + ":" + o["port"];
+                                }
+                            }
+                        }
+                        for (var runid in runids) {
+                            if (g.runids[runid] === undefined) {
+                                x.runid_error = "[+]group=" + g.id + ",server=" + runids[runid] + ",runid="
+                                    + ((runid != "") ? runid : "NA");
+                            }
+                        }
+                        for (var runid in g.runids) {
+                            if (runids[runid] === undefined) {
+                                x.runid_error = "[-]group=" + g.id + ",server=" + g.runids[runid] + ",runid=" + runid;
+                            }
+                        }
+                    }
+                }
             }
             servers.push(x);
         }
@@ -437,6 +471,7 @@ function processGroupStats(codis_stats) {
             g.ispromoting = false;
             g.ispromoting_index = -1;
         }
+        g.runids = {}
         g.canremove = (g.servers.length == 0);
         for (var j = 0; j < g.servers.length; j++) {
             var x = g.servers[j];
@@ -491,6 +526,7 @@ function processGroupStats(codis_stats) {
                 } else {
                     x.master_status = (x.master == g.servers[0].server + ":up");
                 }
+                g.runids[s.stats["run_id"]] = x.server;
             }
             if (g.ispromoting) {
                 x.canremove = false;
@@ -513,6 +549,7 @@ function processGroupStats(codis_stats) {
                 x.canslaveof = "create";
                 x.actionstate = "";
             }
+            x.server_text = x.server;
         }
     }
     return {group_array: group_array, keys: keys, memory: memory};
@@ -593,7 +630,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
         $scope.updateStats = function (codis_stats) {
             var proxy_stats = processProxyStats(codis_stats);
             var group_stats = processGroupStats(codis_stats);
-            var sentinel = processSentinels(codis_stats, $scope.codis_name);
+            var sentinel = processSentinels(codis_stats, group_stats, $scope.codis_name);
 
             var merge = function(obj1, obj2) {
                 if (obj1 === null || obj2 === null) {
@@ -647,6 +684,7 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                 for (var i = 0; i < $scope.group_array.length; i ++) {
                     var g = $scope.group_array[i];
                     var ha_master = sentinel.masters[g.id];
+                    var ha_master_ingroup = false;
                     for (var j = 0; j < g.servers.length; j ++) {
                         var x = g.servers[j];
                         if (ha_master == undefined) {
@@ -666,6 +704,15 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
                                 x.ha_status = "ha_slave";
                             }
                         }
+                        if (x.server == ha_master) {
+                            x.server_text = x.server + " [HA]";
+                            ha_master_ingroup = true;
+                        }
+                    }
+                    if (ha_master == undefined || ha_master_ingroup) {
+                        g.ha_warning = "";
+                    } else {
+                        g.ha_warning = "[HA: " + ha_master + "]";
                     }
                 }
             }
@@ -1124,12 +1171,12 @@ dashboard.controller('MainCodisCtrl', ['$scope', '$http', '$uibModal', '$timeout
             }
         }
 
-        $scope.createSlotAction = function (slot_id, group_id) {
+        $scope.createSlotActionSome = function (slots_num, group_from, group_to) {
             var codis_name = $scope.codis_name;
-            if (isValidInput(codis_name) && isValidInput(slot_id) && isValidInput(group_id)) {
-                alertAction("Migrate Slots-[" + slot_id + "] to Group-[" + group_id + "]", function () {
+            if (isValidInput(codis_name) && isValidInput(slots_num) && isValidInput(group_from) && isValidInput(group_to)) {
+                alertAction("Migrate " + slots_num + " Slots from Group-[" + group_from + "] to Group-[" + group_to + "]", function () {
                     var xauth = genXAuth(codis_name);
-                    var url = concatUrl("/api/topom/slots/action/create/" + xauth + "/" + slot_id + "/" + group_id, codis_name);
+                    var url = concatUrl("/api/topom/slots/action/create-some/" + xauth + "/" + group_from + "/" + group_to + "/" + slots_num, codis_name);
                     $http.put(url).then(function () {
                         $scope.refreshStats();
                     }, function (failedResp) {

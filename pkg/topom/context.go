@@ -32,6 +32,9 @@ type context struct {
 }
 
 func (ctx *context) getSlotMapping(sid int) (*models.SlotMapping, error) {
+	if len(ctx.slots) != MaxSlotNum {
+		return nil, errors.Errorf("invalid number of slots = %d/%d", len(ctx.slots), MaxSlotNum)
+	}
 	if sid >= 0 && sid < MaxSlotNum {
 		return ctx.slots[sid], nil
 	}
@@ -55,17 +58,6 @@ func (ctx *context) maxSlotActionIndex() (maxIndex int) {
 		}
 	}
 	return maxIndex
-}
-
-func (ctx *context) minSlotActionIndex() (d *models.SlotMapping) {
-	for _, m := range ctx.slots {
-		if m.Action.State != models.ActionNothing {
-			if d == nil || m.Action.Index < d.Action.Index {
-				d = m
-			}
-		}
-	}
-	return d
 }
 
 func (ctx *context) isSlotLocked(m *models.SlotMapping) bool {

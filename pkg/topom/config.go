@@ -23,8 +23,11 @@ const DefaultConfig = `
 ##################################################
 
 # Set Coordinator, only accept "zookeeper" & "etcd" & "filesystem".
-coordinator_name = "zookeeper"
-coordinator_addr = "127.0.0.1:2181"
+# Quick Start
+coordinator_name = "filesystem"
+coordinator_addr = "/tmp/codis"
+#coordinator_name = "zookeeper"
+#coordinator_addr = "127.0.0.1:2181"
 
 # Set Codis Product Name/Auth.
 product_name = "codis-demo"
@@ -35,9 +38,10 @@ admin_addr = "0.0.0.0:18080"
 
 # Set arguments for data migration (only accept 'sync' & 'semi-async').
 migration_method = "semi-async"
+migration_parallel_slots = 100
 migration_async_maxbulks = 200
 migration_async_maxbytes = "32mb"
-migration_async_numkeys = 100
+migration_async_numkeys = 500
 migration_timeout = "30s"
 
 # Set configs for redis sentinel.
@@ -61,6 +65,7 @@ type Config struct {
 	ProductAuth string `toml:"product_auth" json:"-"`
 
 	MigrationMethod        string            `toml:"migration_method" json:"migration_method"`
+	MigrationParallelSlots int               `toml:"migration_parallel_slots" json:"migration_parallel_slots"`
 	MigrationAsyncMaxBulks int               `toml:"migration_async_maxbulks" json:"migration_async_maxbulks"`
 	MigrationAsyncMaxBytes bytesize.Int64    `toml:"migration_async_maxbytes" json:"migration_async_maxbytes"`
 	MigrationAsyncNumKeys  int               `toml:"migration_async_numkeys" json:"migration_async_numkeys"`
@@ -116,6 +121,9 @@ func (c *Config) Validate() error {
 	}
 	if _, ok := models.ParseForwardMethod(c.MigrationMethod); !ok {
 		return errors.New("invalid migration_method")
+	}
+	if c.MigrationParallelSlots <= 0 {
+		return errors.New("invalid migration_parallel_slots")
 	}
 	if c.MigrationAsyncMaxBulks <= 0 {
 		return errors.New("invalid migration_async_maxbulks")

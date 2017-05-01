@@ -1085,12 +1085,12 @@ struct commandHelp {
         "-",
         "", 14, "codis3.2"
     },
-    {"SLOTSMGRT-EXEC-WRAPPER",
-        "hashkey command [arg ...]",
+    {"SLOTSMGRT-ASYNC-STATUS",
+        "-",
         "", 14, "codis3.2"
     },
-    {"SLOTSMGRT-LAZY-RELEASE",
-        "[microseconds]",
+    {"SLOTSMGRT-EXEC-WRAPPER",
+        "hashkey command [arg ...]",
         "", 14, "codis3.2"
     },
     {"SLOTSRESTORE-ASYNC SELECT",

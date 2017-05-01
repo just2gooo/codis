@@ -13,7 +13,7 @@ codis-dashboard: codis-deps
 	@./bin/codis-dashboard --default-config > config/dashboard.toml
 
 codis-proxy: codis-deps
-	go build -i -o bin/codis-proxy ./cmd/proxy
+	go build -i -tags "cgo_jemalloc" -o bin/codis-proxy ./cmd/proxy
 	@./bin/codis-proxy --default-config > config/proxy.toml
 
 codis-admin: codis-deps
@@ -31,6 +31,7 @@ codis-server:
 	@cp -f extern/redis-3.2.8/src/redis-benchmark bin/
 	@cp -f extern/redis-3.2.8/src/redis-cli bin/
 	@cp -f extern/redis-3.2.8/redis.conf config/
+	@cp -f extern/redis-3.2.8/sentinel.conf config/
 
 clean-gotest:
 	@rm -rf ./pkg/topom/gotest.tmp

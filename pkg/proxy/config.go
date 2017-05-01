@@ -25,6 +25,13 @@ const DefaultConfig = `
 product_name = "codis-demo"
 product_auth = ""
 
+# Set auth for client session
+#   1. product_auth is used for auth validation among codis-dashboard,
+#      codis-proxy and codis-server.
+#   2. session_auth is different from product_auth, it requires clients
+#      to issue AUTH <PASSWORD> before processing any other commands.
+session_auth = ""
+
 # Set bind address for admin(rpc), tcp only.
 admin_addr = "0.0.0.0:11080"
 
@@ -32,7 +39,14 @@ admin_addr = "0.0.0.0:11080"
 proto_type = "tcp4"
 proxy_addr = "0.0.0.0:19000"
 
-# Set jodis address & session timeout, only accept "zookeeper" & "etcd".
+# Set jodis address & session timeout
+#   1. jodis_name is short for jodis_coordinator_name, only accept "zookeeper" & "etcd".
+#   2. jodis_addr is short for jodis_coordinator_addr
+#   3. proxy will be registered as node:
+#        if jodis_compatible = true (not suggested):
+#          /zk/codis/db_{PRODUCT_NAME}/proxy-{HASHID} (compatible with Codis2.0)
+#        or else
+#          /jodis/{PRODUCT_NAME}/proxy-{HASHID}
 jodis_name = ""
 jodis_addr = ""
 jodis_timeout = "20s"
@@ -88,7 +102,7 @@ session_send_timeout = "30s"
 
 # Make sure this is higher than the max number of requests for each pipeline request, or your client may be blocked.
 # Set session pipeline buffer size.
-session_max_pipeline = 1024
+session_max_pipeline = 10000
 
 # Set session tcp keepalive period. (0 to disable)
 session_keepalive_period = "75s"
@@ -106,6 +120,11 @@ metrics_report_influxdb_period = "1s"
 metrics_report_influxdb_username = ""
 metrics_report_influxdb_password = ""
 metrics_report_influxdb_database = ""
+
+# Set statsd server (such as localhost:8125), proxy will report metrics to statsd.
+metrics_report_statsd_server = ""
+metrics_report_statsd_period = "1s"
+metrics_report_statsd_prefix = ""
 `
 
 type Config struct {
@@ -123,6 +142,7 @@ type Config struct {
 
 	ProductName string `toml:"product_name" json:"product_name"`
 	ProductAuth string `toml:"product_auth" json:"-"`
+	SessionAuth string `toml:"session_auth" json:"-"`
 
 	ProxyDataCenter      string         `toml:"proxy_datacenter" json:"proxy_datacenter"`
 	ProxyMaxClients      int            `toml:"proxy_max_clients" json:"proxy_max_clients"`
@@ -156,6 +176,9 @@ type Config struct {
 	MetricsReportInfluxdbUsername string            `toml:"metrics_report_influxdb_username" json:"metrics_report_influxdb_username"`
 	MetricsReportInfluxdbPassword string            `toml:"metrics_report_influxdb_password" json:"-"`
 	MetricsReportInfluxdbDatabase string            `toml:"metrics_report_influxdb_database" json:"metrics_report_influxdb_database"`
+	MetricsReportStatsdServer     string            `toml:"metrics_report_statsd_server" json:"metrics_report_statsd_server"`
+	MetricsReportStatsdPeriod     timesize.Duration `toml:"metrics_report_statsd_period" json:"metrics_report_statsd_period"`
+	MetricsReportStatsdPrefix     string            `toml:"metrics_report_statsd_prefix" json:"metrics_report_statsd_prefix"`
 }
 
 func NewDefaultConfig() *Config {
@@ -274,6 +297,9 @@ func (c *Config) Validate() error {
 	}
 	if c.MetricsReportInfluxdbPeriod < 0 {
 		return errors.New("invalid metrics_report_influxdb_period")
+	}
+	if c.MetricsReportStatsdPeriod < 0 {
+		return errors.New("invalid metrics_report_statsd_period")
 	}
 	return nil
 }

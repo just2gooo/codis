@@ -13,8 +13,8 @@ import (
 
 var allocOffheapBytes atomic2.Int64
 
-func OffheapBytes() int {
-	return int(allocOffheapBytes.Get())
+func OffheapBytes() int64 {
+	return allocOffheapBytes.Int64()
 }
 
 type cgoSlice struct {
@@ -23,7 +23,7 @@ type cgoSlice struct {
 }
 
 func newCGoSlice(n int, force bool) Slice {
-	after := int(allocOffheapBytes.Add(int64(n)))
+	after := allocOffheapBytes.Add(int64(n))
 	if !force && after > MaxOffheapBytes() {
 		allocOffheapBytes.Sub(int64(n))
 		return nil
@@ -43,6 +43,10 @@ func newCGoSlice(n int, force bool) Slice {
 	return s
 }
 
+func (s *cgoSlice) Type() string {
+	return "cgo_slice"
+}
+
 func (s *cgoSlice) Buffer() []byte {
 	return s.buf
 }
@@ -56,4 +60,16 @@ func (s *cgoSlice) reclaim() {
 	s.ptr = nil
 	s.buf = nil
 	runtime.SetFinalizer(s, nil)
+}
+
+func (s *cgoSlice) Slice2(beg, end int) Slice {
+	return newGoSliceFrom(s, s.Buffer()[beg:end])
+}
+
+func (s *cgoSlice) Slice3(beg, end, cap int) Slice {
+	return newGoSliceFrom(s, s.Buffer()[beg:end:cap])
+}
+
+func (s *cgoSlice) Parent() Slice {
+	return nil
 }
